@@ -1,0 +1,9 @@
+{
+  "name": "claude-image-forge",
+  "version": "0.1.0",
+  "description": "An external image module for Claude: one MCP tool backed by a fallback chain of local, subscription and API image backends.",
+  "type": "module",
+  "private": true,
+  "bin": { "image-forge-mcp": "./mcp/server.mjs" },
+  "engines": { "node": ">=18" }
+}

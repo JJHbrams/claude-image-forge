@@ -1,0 +1,10 @@
+# Secrets. The real .env holds API keys and never gets committed.
+.env
+
+# Generated images. Regenerate them from a recipe instead of versioning pixels.
+out/
+
+# Another tool's state, dropped here when it ran with this directory as its cwd.
+.session_orchestrator/
+
+node_modules/
