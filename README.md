@@ -109,7 +109,7 @@ README 배너를 만든 레시피는 그 저장소가 갖고 있다 — 프롬�
 디자인 결정이지 이 도구의 지식이 아니다.
 
 ```
-session-agent-orchestration/scripts/banner-recipe.mjs
+<your-project>/scripts/banner-recipe.mjs
 ```
 
 이 모듈은 어떻게 그리는지만 알고, 무엇을 그릴지는 부르는 쪽이 안다.
