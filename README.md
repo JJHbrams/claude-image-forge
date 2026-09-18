@@ -17,14 +17,31 @@ Claude ──MCP──► image-forge ──┬─► 로컬 모델 (ComfyUI)   
 
 ## 설치
 
-의존성 없다. Node 18+ 면 된다(`fetch`, `parseArgs` 사용).
-
 ```powershell
-claude mcp add --scope user image-forge -- node "<이 폴더>\mcp\server.mjs"
+git clone <repo> claude-image-forge
+cd claude-image-forge
+.\install.ps1
 ```
 
-API 티어를 쓰려면 `.env.example` 를 `.env` 로 복사해 키를 채운다. 키는 argv·URL·로그에
-싣지 않으며 `.env` 는 gitignore 되어 있다.
+Claude Code 를 재시작하거나 `/mcp` 로 재연결하면 `generate_image` 가 잡힌다.
+
+설치 스크립트가 하는 일 — MCP 서버를 **user scope** 로 등록하고, 스킬을
+`~/.claude/skills` 에 설치하고, `.env` 가 없으면 만들고, **지금 어느 백엔드가 살아
+있는지** 찍어준다. 멱등이라 다시 돌려도 안 깨진다. 저장소를 옮겼으면 옮긴 자리에서
+한 번 더 돌리면 경로가 다시 잡힌다.
+
+```powershell
+.\install.ps1 -Uninstall    # 등록과 스킬만 제거. 체크아웃과 .env 는 그대로
+.\install.ps1 -SkipProbe    # 백엔드 탐지 건너뛰기
+```
+
+의존성은 없다. Node 18+ 면 된다(`fetch`, `parseArgs` 사용).
+
+개발자 모드가 꺼져 있으면 스킬이 **링크가 아니라 복사**로 들어간다 — 그 경우 스킬을
+고친 뒤 스크립트를 다시 돌려야 반영된다. 스크립트가 어느 쪽인지 알려준다.
+
+API 티어를 쓰려면 `.env` 에 키를 채운다. 키는 argv·URL·로그에 싣지 않으며 `.env` 는
+gitignore 되어 있다. **나머지 티어는 키 없이 돈다.**
 
 ## 도구
 
