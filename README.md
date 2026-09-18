@@ -22,7 +22,7 @@ Claude ──MCP──► image-forge ──┬─► 로컬 모델 (ComfyUI)   
 ## 설치
 
 ```powershell
-git clone <repo> claude-image-forge
+git clone https://github.com/JJHbrams/claude-image-forge
 cd claude-image-forge
 .\install.ps1
 ```
