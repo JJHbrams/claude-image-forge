@@ -149,8 +149,21 @@ function describe(result) {
   const tried = (result.attempts || [])
     .map((a) => `  ${a.tier}: ${a.reason}${a.detail ? ` — ${a.detail}` : ''}`)
     .join('\n');
+
+  // A blocked run is not a licence to substitute an SVG. Something here works and
+  // is merely switched off or misconfigured, and only the user can flip it back on.
+  if (result.tier === 'blocked') {
+    const fixes = (result.remedies || []).map((r) => `  - ${r}`).join('\n');
+    return `No image yet — a backend is installed but did not run.\n\nTried:\n${tried}\n\n` +
+      `To fix:\n${fixes}\n\n` +
+      'Do NOT hand-author an SVG instead. Tell the user exactly what to start or set, ' +
+      'and retry once they say it is up.';
+  }
+
   return `No backend produced an image.\n${tried || '  ' + (result.error || 'unknown')}` +
-    (result.tier === 'svg' ? '\n\nEvery raster backend is unavailable. Author an SVG instead.' : '');
+    (result.tier === 'svg'
+      ? '\n\nNo raster backend is installed on this machine. Author an SVG instead.'
+      : '');
 }
 
 // ---------------------------------------------------------------------------

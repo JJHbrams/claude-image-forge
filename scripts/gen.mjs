@@ -10,11 +10,12 @@
 // driven headlessly. Reaching for an API key before checking for a local CLI is
 // how this script got T2 wrong the first time.
 //
-// Emits one JSON object on stdout. Exit 0 = image written, 3 = fall through to SVG.
+// Emits one JSON object on stdout. Exit 0 = image written, 4 = a backend is present
+// but blocked (say what to fix, do NOT draw an SVG), 3 = nothing is installed at all.
 // Secrets are read from env/.env and never printed, logged, or put in argv or a URL.
 
 import { execFile } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve, basename } from 'node:path';
 import { homedir, platform } from 'node:os';
 import { parseArgs } from 'node:util';
@@ -172,6 +173,70 @@ function runAgy(bin, prompt, outPath) {
   });
 }
 
+// ---------- locating a ComfyUI that is installed but switched off ----------
+
+// Directory names never worth descending into when hunting for an install.
+const SKIP_DIRS = new Set([
+  'windows', 'program files', 'program files (x86)', 'programdata', 'users',
+  '$recycle.bin', 'system volume information', 'perflogs', 'recovery', 'appdata',
+  'node_modules', 'onedrive',
+]);
+
+function looksLikeComfy(dir) {
+  return existsSync(resolve(dir, 'ComfyUI/main.py')) || existsSync(resolve(dir, 'main.py'));
+}
+
+// Only called when the server did not answer, so the cost lands on the rare path.
+// Two levels deep: people put it at "D:\ComfyUI_windows_portable" about as often
+// as at "D:\ai\ComfyUI_windows_portable", and one level would miss half of them.
+function findComfyDir() {
+  const explicit = process.env.COMFY_DIR;
+  if (explicit) return looksLikeComfy(explicit) ? resolve(explicit) : null;
+
+  const roots = [homedir()];
+  if (platform() === 'win32') {
+    for (const letter of 'CDEFG') if (existsSync(letter + ':\\')) roots.push(letter + ':\\');
+  } else {
+    roots.push('/opt', '/usr/local/share');
+  }
+
+  const dirsIn = (p) => {
+    try {
+      return readdirSync(p, { withFileTypes: true }).filter((e) => e.isDirectory());
+    } catch {
+      return [];
+    }
+  };
+
+  for (const root of roots) {
+    const top = dirsIn(root);
+    for (const e of top) {
+      const path = resolve(root, e.name);
+      if (/^comfyui/i.test(e.name) && looksLikeComfy(path)) return path;
+    }
+    for (const e of top) {
+      const name = e.name.toLowerCase();
+      // Short, non-system folders only — "D:\ai", "D:\tools", not "C:\Windows".
+      if (SKIP_DIRS.has(name) || name.startsWith('.') || name.length > 12) continue;
+      for (const s of dirsIn(resolve(root, e.name))) {
+        const path = resolve(root, e.name, s.name);
+        if (/^comfyui/i.test(s.name) && looksLikeComfy(path)) return path;
+      }
+    }
+  }
+  return null;
+}
+
+function comfyStartCommand(dir) {
+  const bat = ['run_nvidia_gpu.bat', 'run_cpu.bat']
+    .map((f) => resolve(dir, f))
+    .find(existsSync);
+  if (bat) return `"${bat}"`;
+  const py = resolve(dir, 'python_embeded/python.exe');
+  if (existsSync(py)) return `"${py}" -s "${resolve(dir, 'ComfyUI/main.py')}" --listen 127.0.0.1`;
+  return `python main.py   (in ${dir})`;
+}
+
 // ---------- T2.5: local ComfyUI ----------
 
 // Flux schnell: 4 steps, cfg 1.0, and an SD3-shaped latent. Feeding it a normal
@@ -209,7 +274,25 @@ async function runComfy(prompt, outPath, width, height) {
   try {
     await fetch(base + '/system_stats', { signal: AbortSignal.timeout(3000) });
   } catch {
-    return { ok: false, reason: 'server_not_running' };
+    // "Off" and "never installed" are different answers. Saying the first when the
+    // second is true sends someone hunting a process that does not exist; saying
+    // the second when the first is true throws away a working GPU.
+    const dir = findComfyDir();
+    if (!dir) {
+      return {
+        ok: false,
+        reason: 'not_installed',
+        detail: `nothing at ${base} and no ComfyUI found on this machine. ` +
+          'See the README section on the local tier, or set COMFY_DIR/COMFY_URL if it lives somewhere unusual.',
+      };
+    }
+    return {
+      ok: false,
+      reason: 'server_not_running',
+      detail: `installed at ${dir} but nothing is listening on ${base}`,
+      fix: `Start ComfyUI, then retry:\n      ${comfyStartCommand(dir)}` +
+        (process.env.COMFY_DIR ? '' : `\n    (put COMFY_DIR=${dir} in .env to skip this search next time)`),
+    };
   }
 
   // Check the checkpoint before submitting. ComfyUI rejects an unknown one with
@@ -224,8 +307,11 @@ async function runComfy(prompt, outPath, width, height) {
         ok: false,
         reason: 'checkpoint_not_found',
         detail: available.length
-          ? `wanted "${wanted}"; ComfyUI has: ${available.join(', ')}. Set COMFY_CKPT to one of these.`
-          : `wanted "${wanted}"; ComfyUI has no checkpoints at all. See the README on installing a model.`,
+          ? `wanted "${wanted}"; ComfyUI has: ${available.join(', ')}`
+          : `wanted "${wanted}"; ComfyUI has no checkpoints at all`,
+        fix: available.length
+          ? `Set COMFY_CKPT in .env to one of: ${available.join(', ')}`
+          : 'Put a .safetensors checkpoint in ComfyUI/models/checkpoints — see the README on the local tier.',
       };
     }
   } catch {
@@ -260,7 +346,14 @@ async function runComfy(prompt, outPath, width, height) {
       if (h?.[promptId]) { entry = h[promptId]; break; }
     } catch { /* server busy mid-render; keep polling */ }
   }
-  if (!entry) return { ok: false, reason: 'render_timeout' };
+  if (!entry) {
+    return {
+      ok: false,
+      reason: 'render_timeout',
+      fix: 'The render outlived COMFY_TIMEOUT_MS (' + Number(process.env.COMFY_TIMEOUT_MS || 600000) +
+        ' ms). Raise it in .env, or lower COMFY_STEPS / the requested size.',
+    };
+  }
 
   const img = Object.values(entry.outputs || {}).flatMap((o) => o.images || [])[0];
   if (!img) {
@@ -364,6 +457,25 @@ const sizeMatch = /^(\d+)x(\d+)$/.exec(values.size || '');
 const width = sizeMatch ? Math.round(Number(sizeMatch[1]) / 16) * 16 : 1024;
 const height = sizeMatch ? Math.round(Number(sizeMatch[2]) / 16) * 16 : 1024;
 
+// The only reasons that mean "there is nothing here to fix". Everything else is
+// a backend that exists and misbehaved, which the caller must be told about.
+const ABSENT = new Set(['binary_not_found', 'no_api_key', 'not_installed']);
+
+function remedyFor(a) {
+  if (a.reason === 'quota_exhausted') {
+    return a.retryAfter
+      ? `subscription quota is spent; it returns at ${a.retryAfter}. Retry then, or use another tier.`
+      : 'subscription quota is spent. Retry later, or use another tier.';
+  }
+  if (a.reason === 'upstream_500' || a.reason === 'turn_timeout') {
+    return 'the provider failed on its side. Retry, or force another tier with --tier.';
+  }
+  if (a.reason === 'timeout') {
+    return `the backend outlived IMAGE_FORGE_TIMEOUT_MS (${CODEX_TIMEOUT_MS} ms). Raise it or use a faster tier.`;
+  }
+  return `failed with "${a.reason}"${a.detail ? ` — ${a.detail}` : ''}. This tier is present, so the cause is fixable.`;
+}
+
 function succeeded(tier, r) {
   console.log(JSON.stringify({
     ok: true,
@@ -416,10 +528,33 @@ async function main() {
     if (r.ok) { succeeded('gemini', r); return 0; }
   }
 
+  // SVG is the answer to "this machine has no image model", not to "the image
+  // model is switched off". Anything present-but-unhappy gets reported as
+  // blocked, with what to do about it, because degrading quietly is how a free
+  // GPU sits idle while the caller hand-draws a gradient.
+  const remedies = [];
+  for (const a of attempts) {
+    if (a.ok || ABSENT.has(a.reason)) continue;
+    remedies.push(`[${a.tier}] ${a.fix || remedyFor(a)}`);
+  }
+
+  if (remedies.length) {
+    console.log(JSON.stringify({
+      ok: false,
+      tier: 'blocked',
+      message: 'A backend is installed but did not produce an image. Fix the cause below and retry; ' +
+        'do not fall back to SVG.',
+      remedies,
+      elapsedMs: Date.now() - started,
+      attempts,
+    }));
+    return 4;
+  }
+
   console.log(JSON.stringify({
     ok: false,
     tier: 'svg',
-    message: 'No raster backend available. Hand-author an SVG instead.',
+    message: 'No raster backend is installed on this machine. Hand-author an SVG instead.',
     elapsedMs: Date.now() - started,
     attempts,
   }));
