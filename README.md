@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/banner.png" alt="image-forge — external image generation for Claude" width="100%">
+</p>
+
 # image-forge
 
 Claude 세션에 **이미지 생성을 붙이는 외장 모듈**. Claude는 이미지를 직접 그리지 못하니
