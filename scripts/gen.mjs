@@ -21,7 +21,7 @@ import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const CODEX_TIMEOUT_MS = Number(process.env.BANNER_FORGE_TIMEOUT_MS || 300000);
+const CODEX_TIMEOUT_MS = Number(process.env.IMAGE_FORGE_TIMEOUT_MS || 300000);
 const attempts = [];
 
 // ---------- helpers ----------
@@ -210,6 +210,27 @@ async function runComfy(prompt, outPath, width, height) {
     await fetch(base + '/system_stats', { signal: AbortSignal.timeout(3000) });
   } catch {
     return { ok: false, reason: 'server_not_running' };
+  }
+
+  // Check the checkpoint before submitting. ComfyUI rejects an unknown one with
+  // a node-validation error that names the field but not the alternatives, so a
+  // user whose model is simply called something else has nothing to act on.
+  const wanted = process.env.COMFY_CKPT || 'flux1-schnell-fp8.safetensors';
+  try {
+    const info = await (await fetch(base + '/object_info/CheckpointLoaderSimple')).json();
+    const available = info?.CheckpointLoaderSimple?.input?.required?.ckpt_name?.[0] ?? [];
+    if (Array.isArray(available) && !available.includes(wanted)) {
+      return {
+        ok: false,
+        reason: 'checkpoint_not_found',
+        detail: available.length
+          ? `wanted "${wanted}"; ComfyUI has: ${available.join(', ')}. Set COMFY_CKPT to one of these.`
+          : `wanted "${wanted}"; ComfyUI has no checkpoints at all. See the README on installing a model.`,
+      };
+    }
+  } catch {
+    // The listing is a courtesy. If it cannot be read, submit anyway and let
+    // ComfyUI answer — better a real error than a guess about why.
   }
 
   let promptId;

@@ -1,9 +1,9 @@
-<#
+﻿<#
 .SYNOPSIS
   Registers claude-image-forge with Claude Code: the MCP server and the skill.
 
 .DESCRIPTION
-  Run this once after cloning. It is idempotent — running it again re-points
+  Run this once after cloning. It is idempotent - running it again re-points
   everything at this checkout, which is also how you move the repository.
 
   What it does:
@@ -33,7 +33,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# Anchored to this file, never to the caller's location — the same rule the
+# Anchored to this file, never to the caller's location - the same rule the
 # server itself follows, and for the same reason.
 $Root      = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ServerJs  = Join-Path $Root 'mcp\server.mjs'
@@ -94,7 +94,7 @@ if ($nodeMajor -lt 18) {
 Write-Ok "node $nodeVersion"
 
 if (-not (Test-Path $ServerJs)) {
-  Write-Bad "server missing: $ServerJs — is this a complete checkout?"
+  Write-Bad "server missing: $ServerJs - is this a complete checkout?"
   exit 1
 }
 Write-Ok 'server present'
@@ -152,7 +152,7 @@ if ($linked) {
   Write-Ok "linked $SkillDst -> $SkillSrc"
 } else {
   Write-Ok "copied to $SkillDst"
-  Write-Warn 'copied, not linked (Developer Mode is off) — re-run this script after editing the skill'
+  Write-Warn 'copied, not linked (Developer Mode is off) - re-run this script after editing the skill'
 }
 
 # ---------------------------------------------------------------------------
@@ -166,7 +166,7 @@ $envExample = Join-Path $Root '.env.example'
 if (-not (Test-Path $envPath) -and (Test-Path $envExample)) {
   Copy-Item $envExample $envPath
   Write-Ok 'created .env from .env.example'
-  Write-Warn 'the API tier stays off until you put a key in .env — the other tiers need no key'
+  Write-Warn 'the API tier stays off until you put a key in .env - the other tiers need no key'
 } elseif (Test-Path $envPath) {
   Write-Ok '.env already exists, left untouched'
 }
@@ -174,20 +174,39 @@ if (-not (Test-Path $envPath) -and (Test-Path $envExample)) {
 # ---------------------------------------------------------------------------
 # backend probe
 #
-# Reports what is reachable right now. None of this is required to install —
+# Reports what is reachable right now. None of this is required to install -
 # the chain falls through to whatever is available, and says so at call time.
 # ---------------------------------------------------------------------------
 
 if (-not $SkipProbe) {
   Write-Step 'Backends reachable right now'
 
-  # local: ComfyUI
+  # local: ComfyUI. "not running" and "never installed" need different answers,
+  # and telling someone to start a thing they do not have sends them looking in
+  # the wrong place - so report the checkpoints too, not just the port.
   $comfyUrl = if ($env:COMFY_URL) { $env:COMFY_URL } else { 'http://127.0.0.1:8188' }
   try {
     Invoke-WebRequest -Uri "$comfyUrl/system_stats" -TimeoutSec 3 -UseBasicParsing | Out-Null
-    Write-Ok "local (ComfyUI) at $comfyUrl — free, unlimited"
+    $ckpts = @()
+    try {
+      $info = Invoke-RestMethod -Uri "$comfyUrl/object_info/CheckpointLoaderSimple" -TimeoutSec 5
+      $ckpts = @($info.CheckpointLoaderSimple.input.required.ckpt_name[0])
+    } catch { }
+
+    if ($ckpts.Count -gt 0) {
+      Write-Ok "local (ComfyUI) at $comfyUrl - free, unlimited"
+      Write-Ok "  checkpoints: $($ckpts -join ', ')"
+      $wanted = if ($env:COMFY_CKPT) { $env:COMFY_CKPT } else { 'flux1-schnell-fp8.safetensors' }
+      if ($ckpts -notcontains $wanted) {
+        Write-Warn "  the chain looks for '$wanted' - set COMFY_CKPT in .env to one of the above"
+      }
+    } else {
+      Write-Warn "local (ComfyUI) is running but has no checkpoints - see the README on installing a model"
+    }
   } catch {
-    Write-Warn "local (ComfyUI) not running at $comfyUrl — start it to use the free tier"
+    Write-Warn "local (ComfyUI) not reachable at $comfyUrl"
+    Write-Warn '  not installed? the README has the download and where to put the model'
+    Write-Warn '  installed but stopped? start it, then re-run this with no arguments to re-probe'
   }
 
   # subscription CLIs
@@ -195,9 +214,9 @@ if (-not $SkipProbe) {
       @{ Name = 'codex'; Note = 'gpt-image-2 on your ChatGPT quota' },
       @{ Name = 'agy';   Note = 'generate_image on your Google quota' })) {
     if (Get-Command $cli.Name -ErrorAction SilentlyContinue) {
-      Write-Ok "$($cli.Name) CLI found — $($cli.Note)"
+      Write-Ok "$($cli.Name) CLI found - $($cli.Note)"
     } else {
-      Write-Warn "$($cli.Name) CLI not on PATH — that tier will be skipped"
+      Write-Warn "$($cli.Name) CLI not on PATH - that tier will be skipped"
     }
   }
 
@@ -208,9 +227,9 @@ if (-not $SkipProbe) {
     if (Select-String -Path $envPath -Pattern '^\s*GEMINI_API_KEY\s*=\s*\S' -Quiet) { $hasKey = $true }
   }
   if ($hasKey) {
-    Write-Ok 'GEMINI_API_KEY is set — metered API tier available'
+    Write-Ok 'GEMINI_API_KEY is set - metered API tier available'
   } else {
-    Write-Warn 'no GEMINI_API_KEY — metered API tier will be skipped'
+    Write-Warn 'no GEMINI_API_KEY - metered API tier will be skipped'
   }
 }
 

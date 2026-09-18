@@ -47,6 +47,48 @@ Claude Code 를 재시작하거나 `/mcp` 로 재연결하면 `generate_image` �
 API 티어를 쓰려면 `.env` 에 키를 채운다. 키는 argv·URL·로그에 싣지 않으며 `.env` 는
 gitignore 되어 있다. **나머지 티어는 키 없이 돈다.**
 
+## 로컬 티어 설치 (선택)
+
+없어도 모듈은 돈다 — 구독 CLI 나 API 로 내려간다. 다만 **로컬만 쿼터가 없다.** 장당
+8초에 20장 뽑아 고르는 게 가능한 건 여기뿐이라, GPU 가 있으면 깔 값어치가 있다.
+
+설치 스크립트는 **이걸 받아주지 않는다.** 수십 GB 를 묻지도 않고 내려받는 건 남의
+디스크와 회선에 대한 결정이라, 무엇이 없는지만 알려주고 판단은 넘긴다.
+
+### 1. ComfyUI
+
+[릴리즈](https://github.com/comfyanonymous/ComfyUI/releases)에서 Windows 포터블을
+받는다. NVIDIA 면 `ComfyUI_windows_portable_nvidia.7z` (약 1.8 GB). 파이썬이 같이
+들어 있어 별도 설치가 필요 없다. 압축을 풀면 끝이다.
+
+### 2. 체크포인트
+
+포터블 안 `ComfyUI\models\checkpoints\` 에 `.safetensors` 를 넣는다. 기본 기대값은
+[Flux.1-schnell fp8](https://huggingface.co/Comfy-Org/flux1-schnell) 단일 파일
+(`flux1-schnell-fp8.safetensors`, 약 16 GB) 이다 — UNet·CLIP·T5·VAE 가 한 파일에
+들어 있어 인코더를 따로 받아 배선할 필요가 없다.
+
+`schnell` 은 4 스텝짜리라 빠르다. `dev` 는 20~50 스텝이라 품질이 조금 낫지만 장당
+몇 분씩 걸려서, **여러 장 뽑아 고른다**는 로컬의 유일한 강점이 사라진다.
+
+다른 모델을 써도 된다. 파일 이름을 `.env` 의 `COMFY_CKPT` 에 적어주면 되고, 이름이
+어긋나면 체인이 **ComfyUI 에 실제로 뭐가 있는지 목록으로 알려준다.**
+
+### 3. 기동
+
+```powershell
+cd <포터블 폴더>
+.\python_embeded\python.exe -s ComfyUI\main.py --listen 127.0.0.1
+```
+
+`.\install.ps1` 을 다시 돌리면 잡혔는지, 체크포인트가 뭐가 보이는지 찍어준다.
+
+### VRAM
+
+8 GB 면 Flux fp8 이 다 안 올라가서 시스템 RAM 으로 오프로딩한다. **느린 거지 안 되는
+건 아니다** — 1216x320 기준 콜드 스타트 약 170 초, 이후 28~36 초. 첫 장만 모델을
+디스크에서 올리느라 오래 걸린다.
+
 ## 도구
 
 ### `generate_image`
@@ -67,7 +109,7 @@ gitignore 되어 있다. **나머지 티어는 키 없이 돈다.**
 |---|---|---|---|
 | T1 | gpt-image-2 (`codex exec`) | ChatGPT 구독 쿼터 | Codex CLI 로그인 |
 | T2 | `generate_image` (`agy --print`) | Google 구독 쿼터 | agy CLI 로그인 |
-| T2.5 | 로컬 (ComfyUI) | **무료·무제한** | GPU + 체크포인트 |
+| T2.5 | 로컬 (ComfyUI) | **무료·무제한** | GPU + 체크포인트 ([설치](#로컬-티어-설치-선택)) |
 | T2b | `gemini-2.5-flash-image` REST | 종량 과금 | `GEMINI_API_KEY` |
 | T3 | — | — | 래스터 불가. SVG로 안내 |
 
