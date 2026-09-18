@@ -35,6 +35,10 @@ const { values } = parseArgs({
     rotate: { type: 'string', default: '-0.4' },
     size: { type: 'string', default: '1216x224' },
     ink: { type: 'string', default: '#04121f' },
+    // multiply suits dark type on a lit surface — the type occludes light rather
+    // than painting over it. On a dark surface that leaves nothing visible, so
+    // light type needs screen (glow) or normal (paint).
+    blend: { type: 'string', default: 'multiply' }, // multiply | screen | normal
     opacity: { type: 'string', default: '0.82' },
     grid: { type: 'boolean', default: false }, // overlay a ruler to find the rect
   },
@@ -91,8 +95,7 @@ const html = `<!doctype html><meta charset="utf-8">
     align-items: ${stacked ? 'flex-start' : 'center'}; justify-content: center;
     gap: ${stacked ? 0 : Math.round(rh * 0.14)}px;
     transform: rotate(${values.rotate}deg);
-    /* The wall is emitting light; dark type on it is occlusion, not paint. */
-    mix-blend-mode: multiply;
+    mix-blend-mode: ${values.blend};
     opacity: ${values.opacity};
     /* The plate is shot with shallow depth of field — crisp type would float. */
     filter: blur(0.35px);
