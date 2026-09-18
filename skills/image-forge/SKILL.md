@@ -24,6 +24,14 @@ code alone.
 {"ok":true,"tier":"comfy","path":"...","mime":"image/png","bytes":184320,"elapsedMs":8412}
 ```
 
+Three outcomes, and they are not interchangeable:
+
+| `tier` | exit | means | what to do |
+|---|---|---|---|
+| a backend name | 0 | image written | report which tier ran |
+| `blocked` | 4 | a backend is installed but off or misconfigured | relay `remedies`, stop, retry after |
+| `svg` | 3 | no raster backend exists here | hand-author the SVG |
+
 **Always tell the user which tier ran.** The difference matters to them: the
 local tier is free and unlimited, the subscription tiers spend the quota they
 also code with, the API tier spends money.
@@ -69,9 +77,25 @@ thumbnail and loses the title.
 
 If the type will not be added, drop that constraint and compose the whole frame.
 
-## When every backend refuses
+## When a backend is present but blocked
 
-The result comes back `{"ok": false, "tier": "svg"}`. Write the SVG yourself:
+`{"ok": false, "tier": "blocked"}` with a `remedies` list. A working backend is
+installed and merely switched off or misconfigured — most often ComfyUI, which
+is free and unlimited and sitting there not running.
+
+**Stop and say so. Do not draw an SVG, and do not spend a paid tier instead.**
+Quote the remedy verbatim — it carries the actual command and path — then wait.
+Retry when the user says it is up.
+
+The one thing that is never an answer here: producing a lesser image and
+mentioning the failure in passing. The user cannot start a service they were
+not told was off.
+
+## When nothing is installed at all
+
+The result comes back `{"ok": false, "tier": "svg"}` — every tier reported
+`binary_not_found`, `no_api_key` or `not_installed`, so there is nothing to
+switch on. Write the SVG yourself:
 
 - Commit it into the repo. Do not link an external banner service — GitHub
   proxies images through camo and those URLs break.

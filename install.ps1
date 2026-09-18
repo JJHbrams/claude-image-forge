@@ -207,6 +207,8 @@ if (-not $SkipProbe) {
     Write-Warn "local (ComfyUI) not reachable at $comfyUrl"
     Write-Warn '  not installed? the README has the download and where to put the model'
     Write-Warn '  installed but stopped? start it, then re-run this with no arguments to re-probe'
+    Write-Warn '  the generator finds a stopped install on its own and prints the start command;'
+    Write-Warn '  set COMFY_DIR in .env if it sits somewhere the search will not reach'
   }
 
   # subscription CLIs
