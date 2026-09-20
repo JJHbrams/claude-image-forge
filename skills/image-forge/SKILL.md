@@ -1,6 +1,6 @@
 ---
 name: image-forge
-description: Generate images — hero art, textures, backgrounds, illustrations, OG images, README banners — through an external image model, since Claude cannot draw. Tries a local model, then subscription CLIs, then an API, and says which one produced the image. Use whenever a task needs a raster image made rather than found. Do not use for logos, icons or diagrams, which belong in SVG.
+description: Generate images — hero art, textures, backgrounds, illustrations, thumbnails, OG images, README banners — through an external image model, since Claude cannot draw. Use whenever a task needs a raster image made rather than found. Also use when the request names the machinery instead of the task — ComfyUI, Flux, Stable Diffusion, SDXL, a local or GPU model, gpt-image, DALL-E, Imagen, Gemini, nano-banana, "the image MCP", "the local model", "image-forge" — including a demand for one specific backend, which this skill honours with its tier flag. Korean requests belong here too — 그림 그려줘, 그려줘, 이미지 생성/만들어줘, 배너·썸네일·일러스트·배경·표지 만들어줘, 컴피·컴피유아이·플럭스·로컬 모델로 뽑아줘. Tries a local model, then subscription CLIs, then an API, and says which one produced the image. Do not use for logos, icons or diagrams, which belong in SVG.
 ---
 
 # image-forge
@@ -35,6 +35,23 @@ Three outcomes, and they are not interchangeable:
 **Always tell the user which tier ran.** The difference matters to them: the
 local tier is free and unlimited, the subscription tiers spend the quota they
 also code with, the API tier spends money.
+
+## When the user names a backend
+
+"Draw it with ComfyUI", "use the local model", "컴피로 뽑아줘" — that is a
+request for this skill with the tier already chosen. Pass it through instead of
+letting the chain pick:
+
+| they said | `tier` |
+|---|---|
+| ComfyUI, Flux, SDXL, local, GPU, 로컬, 컴피 | `comfy` |
+| gpt-image, Codex, ChatGPT | `codex` |
+| Gemini, nano-banana, agy | `agy` (subscription) or `gemini` (API key) |
+
+A named tier is pinned, not preferred: it does not fall through to the others.
+If it comes back `blocked`, say what to switch on rather than quietly running a
+different backend — they asked for that one, and a silent substitution spends
+quota or money they did not agree to.
 
 ## Writing the prompt
 
